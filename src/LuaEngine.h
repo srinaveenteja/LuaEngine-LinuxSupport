@@ -2,12 +2,15 @@
 #define LuaEngine_Lib_h
 
 
-#include <Arduino.h>
+//#include <Arduino.h>
 #include <atomic>
+// To support uint8_t
+#include <stdint.h>
+#include <thread>
 #include "LuaWrapper/LuaWrapper.h"
-#include <ArduinoJson.h>
-#include <Preferences.h>
-#include "SPIFFS.h"
+//#include <ArduinoJson.h>
+//#include <Preferences.h>
+//#include "SPIFFS.h"
 
 // Lua script functions mapping names
 
@@ -47,7 +50,8 @@
 
 
 // Lua engine error codes
-#define NO_ERROR 0 // No error
+//#define NO_ERROR 0 // No error
+//#define LE_NO_ERROR_CODE 0 // No error
 #define BUFF_FAIL 1 // Failed to allocate the buffer
 #define TASK_FAIL 2 // Failed to create Lua task
 #define SCRIPT_RELOAD_FAIL 3 // Failed to reload Lua script
@@ -104,7 +108,8 @@ class LuaEngine {
 
   public:
 
-  TaskHandle_t Lua_TaskHandle; // Pointer to handler of Lua task
+  //TaskHandle_t Lua_TaskHandle; // Pointer to handler of Lua task
+  std::thread Lua_TaskHandle; // Pointer to handler of Lua task
 
   uint8_t LE_ERC; // Lua engine error code
 
@@ -127,7 +132,7 @@ class LuaEngine {
    * 
    */
   LuaEngine() {
-    LE_ERC = NO_ERROR;
+    //LE_ERC = LE_NO_ERROR_CODE;
     maxBuffSize = 0;
     Lua_Shed_Stat = 0;
 //    Action_CmdID = 0;

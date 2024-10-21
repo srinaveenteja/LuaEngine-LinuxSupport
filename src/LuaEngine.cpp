@@ -1,3 +1,6 @@
+#include <iostream>
+#include <chrono>
+#include <pthread.h>
 #include "LuaEngine.h"
 
 // Initialize static data members
@@ -13,6 +16,17 @@ std::atomic<uint8_t> LuaEngine::Lua_Shed_Stat;
 //std::atomic<int8_t> LuaEngine::ARS_Stat;
 std::atomic<bool> LuaEngine::LuaNotifyReadWait;
 
+static std::chrono::time_point<std::chrono::steady_clock> start_time;
+
+void initialize() {
+    start_time = std::chrono::steady_clock::now();
+}
+
+unsigned long millis() {
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+}
+
 
 /**
  * @brief Get current milliseconds
@@ -25,6 +39,10 @@ uint8_t LuaEngine::LuaFunc_Millis(lua_State *lua_state) {
   return 1;
 }
 
+void delay_ms(unsigned long milliseconds) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+}
+
 /**
  * @brief Block Lua task for a specified duration
  * 
@@ -32,8 +50,9 @@ uint8_t LuaEngine::LuaFunc_Millis(lua_State *lua_state) {
  * @return int Status for Lua interpreter
  */
 uint8_t LuaEngine::LuaFunc_Delay(lua_State *lua_state) {
-  int delay_ms = luaL_checkinteger(lua_state, 1);
-  delay(delay_ms);
+  //int delay_ms = luaL_checkinteger(lua_state, 1);
+  unsigned long delay_duration = lua_tointeger(lua_state, 1);
+  delay_ms(delay_duration);
   return 0;
 }
 
@@ -50,12 +69,13 @@ int LuaEngine::LuaFunc_Print(lua_State *L) {
     s = lua_tolstring(L, -1, &l); // Get result
     if (s == NULL)
       return luaL_error(L, "'tostring' must return a string to 'print'");
-    if (i > 1) 
-      Serial.write(" ");
-    Serial.write(s);
+    if (i > 1) { 
+      printf(" "); // Print space before subsequent arguments
+	}
+
+    printf("%s", s); // Print the string to stdout
     lua_pop(L, 1); // Pop result
   }
-  Serial.println();
   return 0;
 }
 
@@ -81,9 +101,16 @@ uint8_t LuaEngine::LunFunc_ScriptRestart(lua_State *lua_state) {
  * @return uint8_t value to update
  */
 uint8_t LuaEngine::LuaFunc_NVS_WriteInt(lua_State *lua_state){
+#if 0
   const char *nvs_key = luaL_checkstring(lua_state, 1); // Key in NVS to increment
-  int val = luaL_checkinteger(lua_state, 2); // Value to Write
-  
+#else
+  const char *file_path = luaL_checkstring(lua_state, 1); // File path to write to
+#endif
+
+  int val = luaL_checkinteger(lua_state, 2); // Value to Write 
+ 
+#if 0 // TODO: Remove it or make it compatabile condition compilation options
+
   // Update NVS
   Preferences preferences;
   preferences.begin(LUA_NVS_HEADER);
@@ -95,6 +122,23 @@ uint8_t LuaEngine::LuaFunc_NVS_WriteInt(lua_State *lua_state){
   Serial.printf("Written to %s: %d\n", nvs_key, val);
 
   return 1;
+
+#else // Linux file operation support
+
+  // Open the file for writing
+  FILE *file = fopen(file_path, "w");
+  if (file == NULL) {
+      return luaL_error(lua_state, "Failed to open file: %s", file_path);
+  }
+
+  // Writes the integer to the file
+  fprintf(file, "%d\n", val);
+    
+  // Close the file
+  fclose(file);
+
+  printf("Written to %s: %d\n", file_path, val);
+#endif
 
 }
 
@@ -132,13 +176,13 @@ void LuaEngine::Lua_TaskMapFunc(LuaWrapper &LW) {
  * @param LB_sz Number of elements to allocate
  */
 void LuaEngine::Lua_TaskAndBuffInit(uint16_t LB_sz) {
-  if (LE_ERC != NO_ERROR)
-    return;
+  //if (LE_ERC != NO_ERROR)
+  //  return;
 
   LuaBuffVar = (std::atomic<float> *) calloc(LB_sz, sizeof(float));
     
   if (LuaBuffVar == NULL) {
-    Serial.printf("Failed in dynamic allocation of Lua shared buffer\n");
+    printf("Failed in dynamic allocation of Lua shared buffer\n");
     LE_ERC = BUFF_FAIL;
     maxBuffSize = 0;
     return;
@@ -150,12 +194,33 @@ void LuaEngine::Lua_TaskAndBuffInit(uint16_t LB_sz) {
   for (int i = 0; i < maxBuffSize; i++)
     LuaBuffVar[i] = -1;
 
+#if 0
   BaseType_t xTaskStatus = xTaskCreate(&Lua_Task, "lua_task", LUA_STACK_SIZE, this, LUA_TASK_PRIORITY, &Lua_TaskHandle);
   if (xTaskStatus != pdPASS) {
-    Serial.printf("Failed in creation of Lua task\n");
+    printf("Failed in creation of Lua task\n");
     LE_ERC = TASK_FAIL;
     maxBuffSize = 0;
   }
+#endif
+
+#if 0
+    std::thread luaThread(Lua_Task, this); // Pass the current instance
+    luaThread.detach(); // Detach to run independently
+#endif
+
+#if 0
+	// Create a new thread using pthread
+    pthread_t luaThread;
+    if (pthread_create(&luaThread, nullptr, Lua_Task, this) != 0) {
+        std::cerr << "Failed to create Lua task thread" << std::endl;
+        LE_ERC = TASK_FAIL;
+        maxBuffSize = 0;
+    } else {
+        pthread_detach(luaThread); // Detach the thread to run independently
+    }
+#endif
+
+	Lua_Task(this);
 }
 
 /**
@@ -168,21 +233,26 @@ void LuaEngine::Lua_Task(void *pvParameters) {
 
   LuaWrapper LW; // Object to Lua wrapper
 
+
   while (1) {
     LW.LW_ResetLVM();
     LE->Lua_TaskMapFunc(LW);
-    LW.LW_ExecuteFile(LF_Files_Path);
-    LW.LW_ExecuteFile(LM_Files_Path, 1);
+    //LW.LW_ExecuteFile(LF_Files_Path);
+    //LW.LW_ExecuteFile(LM_Files_Path, 1);
+  	LW.LW_ExecuteFile("/opt/FuncScript.lua");
+	LW.LW_ExecuteFile("/opt/MainScript.lua", 1);
 
-    #if LUA_CHECK_HIGH_WATER_MARK
-    Serial.printf("Lua task stack free: %u\n", uxTaskGetStackHighWaterMark(NULL));
-    #endif
+    //#if LUA_CHECK_HIGH_WATER_MARK
+    //printf("Lua task stack free: %u\n", uxTaskGetStackHighWaterMark(NULL));
+    //#endif
+	std::cout << "Lua task running..." << std::endl;
 
     // Reset RPC trigger
     if (LE->LuaScriptRestart == 1)
       LE->LuaScriptRestart = 0;
     
-    delay(5000);
+    //delay(5000);
+	std::this_thread::sleep_for(std::chrono::milliseconds(5000));
   }
 }
 
@@ -193,13 +263,39 @@ void LuaEngine::Lua_Task(void *pvParameters) {
  * @return int Status for Lua interpreter
  */
 uint8_t LuaEngine::LuaFunc_NVS_GetVal(lua_State *lua_state) {
+#if 0
   const char *nvs_key = luaL_checkstring(lua_state, 1); // Key in NVS to get value of
+#else
+  const char *file_path = luaL_checkstring(lua_state, 1); // File path to read from
+#endif
+
+#if 0
 
   // Read from NVS
   Preferences preferences;
   preferences.begin(LUA_NVS_HEADER);
   int nvs_val = preferences.getInt(nvs_key, 0);
   preferences.end();
+
+#else
+
+  // Open the file for reading
+  FILE *file = fopen(file_path, "r");
+  if (file == NULL) {
+      return luaL_error(lua_state, "Failed to open file: %s", file_path);
+  }
+
+  int nvs_val = 0;
+  // Read the integer from the file
+  if (fscanf(file, "%d", &nvs_val) != 1) {
+      fclose(file);
+      return luaL_error(lua_state, "Failed to read integer from file: %s", file_path);
+  }
+
+  // Close the file
+  fclose(file);
+
+#endif
 
   lua_pushinteger(lua_state, nvs_val);
 
@@ -529,7 +625,7 @@ uint8_t LuaEngine::LuaFunc_ActcmdReset(lua_State *lua_state){
  * @return uint8_t Status for Lua interpreter
  */
 uint8_t LuaEngine::LuaFunc_GC_full(lua_State *lua_state){
-  LuaC_gcfull(lua_state);
+  //LuaC_gcfull(lua_state);
   return 1;
 }
 
