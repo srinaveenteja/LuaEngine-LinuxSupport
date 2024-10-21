@@ -1,10 +1,12 @@
 #ifndef LUA_WRAPPER_H
 #define LUA_WRAPPER_H
 
-#include <Arduino.h>
+//#include <Arduino.h>
 
 // #define LUA_USE_C89
-#include "LuaWrapper\lua\src\lua.hpp"
+//#include "LuaWrapper\lua\src\lua.hpp"
+#include "lua/src/lua.hpp"
+#include "lua.h"
 
 /**
  * @brief Wrap Lua library for executing scripts

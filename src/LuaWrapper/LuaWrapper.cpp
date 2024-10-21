@@ -1,4 +1,5 @@
-#include "LuaWrapper/LuaWrapper.h"
+//#include "LuaWrapper/LuaWrapper.h"
+#include "LuaWrapper.h"
 
 /**
  * @brief Start a new Lua virtual machine
@@ -10,15 +11,15 @@ void LuaWrapper::LW_ResetLVM() {
   // Uncomment required libraries
   static const luaL_Reg loadedlibs[] = {
     {LUA_GNAME, luaopen_base},
-    // {LUA_LOADLIBNAME, luaopen_package},
-    // {LUA_COLIBNAME, luaopen_coroutine},
+    {LUA_LOADLIBNAME, luaopen_package},
+    {LUA_COLIBNAME, luaopen_coroutine},
     {LUA_TABLIBNAME, luaopen_table},
-    // {LUA_IOLIBNAME, luaopen_io},
-    // {LUA_OSLIBNAME, luaopen_os},
+    {LUA_IOLIBNAME, luaopen_io},
+    {LUA_OSLIBNAME, luaopen_os},
     {LUA_STRLIBNAME, luaopen_string},
     {LUA_MATHLIBNAME, luaopen_math},
-    // {LUA_UTF8LIBNAME, luaopen_utf8},
-    // {LUA_DBLIBNAME, luaopen_debug},
+    {LUA_UTF8LIBNAME, luaopen_utf8},
+    {LUA_DBLIBNAME, luaopen_debug},
     {NULL, NULL}
   };
 
@@ -49,7 +50,8 @@ void LuaWrapper::LW_RegisterFunc(const char *name, const lua_CFunction function)
  */
 void LuaWrapper::LW_ExecuteFile(const char *filename, bool close_LVM) {
   if (luaL_dofile(_state, filename)) {
-    Serial.printf("# lua error: %s\n", lua_tostring(_state, -1));
+    //Serial.printf("# lua error: %s\n", lua_tostring(_state, -1));
+    printf("# lua error: %s\n", lua_tostring(_state, -1));
     lua_pop(_state, 1);
   }
   
@@ -62,5 +64,20 @@ void LuaWrapper::LW_ExecuteFile(const char *filename, bool close_LVM) {
  * 
  */
 void LuaWrapper::LW_GarbCollectFull(){
-  LuaC_gcfull(_state);
+  //LuaC_gcfull(_state);
+  return;
 }
+
+#if 0 // Enable if required to test LuaWrapper standalone
+int main() {
+	LuaWrapper luaWrapper;
+    printf("Init LuaWrapper testing..\n");
+
+    // Initialize your Lua environment and run your Lua code here
+	luaWrapper.LW_ResetLVM();
+	//luaWrapper.LW_RegisterFunc();
+	luaWrapper.LW_ExecuteFile("./sample.lua", 1);
+
+    return 0;
+}
+#endif
