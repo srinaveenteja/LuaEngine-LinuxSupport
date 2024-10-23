@@ -1,7 +1,9 @@
 #include <iostream>
-#include <chrono>
+#include <unistd.h>
+#include <stdint.h>
 #include <pthread.h>
 #include "LuaEngine.h"
+#include "./LuaWrapper/lua/src/lua.h"
 
 // Initialize static data members
 //Inp_Out *LuaEngine::IO;
@@ -15,6 +17,7 @@ std::atomic<uint8_t> LuaEngine::Lua_Shed_Stat;
 //std::atomic<float> LuaEngine::Action_CmdVAL;
 //std::atomic<int8_t> LuaEngine::ARS_Stat;
 std::atomic<bool> LuaEngine::LuaNotifyReadWait;
+void *Lua_Task(void *pvParameters);
 
 static std::chrono::time_point<std::chrono::steady_clock> start_time;
 
@@ -40,7 +43,7 @@ uint8_t LuaEngine::LuaFunc_Millis(lua_State *lua_state) {
 }
 
 void delay_ms(unsigned long milliseconds) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+	usleep(milliseconds * 1000); // usleep takes microseconds in C
 }
 
 /**
@@ -203,24 +206,19 @@ void LuaEngine::Lua_TaskAndBuffInit(uint16_t LB_sz) {
   }
 #endif
 
-#if 0
-    std::thread luaThread(Lua_Task, this); // Pass the current instance
-    luaThread.detach(); // Detach to run independently
-#endif
-
-#if 0
 	// Create a new thread using pthread
     pthread_t luaThread;
-    if (pthread_create(&luaThread, nullptr, Lua_Task, this) != 0) {
+    if (pthread_create(&luaThread, NULL, Lua_Task, this) != 0) {
         std::cerr << "Failed to create Lua task thread" << std::endl;
         LE_ERC = TASK_FAIL;
         maxBuffSize = 0;
     } else {
         pthread_detach(luaThread); // Detach the thread to run independently
     }
-#endif
 
+#if 0
 	Lua_Task(this);
+#endif
 }
 
 /**
@@ -228,7 +226,8 @@ void LuaEngine::Lua_TaskAndBuffInit(uint16_t LB_sz) {
  * 
  * @param pvParameters User defined parameters
  */
-void LuaEngine::Lua_Task(void *pvParameters) {
+//void LuaEngine::Lua_Task(void *pvParameters) {
+void *Lua_Task(void *pvParameters) {
   LuaEngine *LE = (LuaEngine *) pvParameters; // Dereference the Lua engine object
 
   LuaWrapper LW; // Object to Lua wrapper
@@ -236,7 +235,8 @@ void LuaEngine::Lua_Task(void *pvParameters) {
 
   while (1) {
     LW.LW_ResetLVM();
-    LE->Lua_TaskMapFunc(LW);
+	// Commented this since Arduino function registration is not needed for linux
+    //LE->Lua_TaskMapFunc(LW);
     //LW.LW_ExecuteFile(LF_Files_Path);
     //LW.LW_ExecuteFile(LM_Files_Path, 1);
   	LW.LW_ExecuteFile("/opt/FuncScript.lua");
@@ -252,8 +252,10 @@ void LuaEngine::Lua_Task(void *pvParameters) {
       LE->LuaScriptRestart = 0;
     
     //delay(5000);
-	std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+	usleep(5000 * 1000);
   }
+
+	return NULL;
 }
 
 /**

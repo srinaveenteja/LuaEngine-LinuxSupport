@@ -142,7 +142,7 @@ class LuaEngine {
   }
 
   void Lua_TaskAndBuffInit(uint16_t LB_sz);
-  static void Lua_Task(void *pvParameters);
+  //static void *Lua_Task(void *pvParameters); // Moved out of the class to support pthread_create callback
   
   //void Lua_IO_Sync(LuaEngine &LE, Inp_Out &_Io);
   void Lua_IO_Sync(LuaEngine &LE);
