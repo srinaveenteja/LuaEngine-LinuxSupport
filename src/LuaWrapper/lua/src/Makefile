@@ -6,13 +6,13 @@
 # Your platform. See PLATS for possible values.
 PLAT= guess
 
-CC= arm-linux-gnueabihf-gcc -std=gnu99
+CC ?= gcc -std=gnu99
 CFLAGS= -O2 -Wall -Wextra -DLUA_COMPAT_5_3 $(SYSCFLAGS) $(MYCFLAGS)
 LDFLAGS= $(SYSLDFLAGS) $(MYLDFLAGS)
 LIBS= -lm $(SYSLIBS) $(MYLIBS)
 
-AR= arm-linux-gnueabihf-ar rcu
-RANLIB= arm-linux-gnueabihf-ranlib
+AR ?= ar
+RANLIB ?= ranlib
 RM= rm -f
 UNAME= uname
 
@@ -32,7 +32,7 @@ CMCFLAGS=
 
 PLATS= guess aix bsd c89 freebsd generic linux linux-readline macosx mingw posix solaris
 
-LUA_A=	/home/naveensindhu/Desktop/energyeta/git_repo/LuaEngine-LinuxSupport/src/LuaWrapper/lua/src/liblua.a
+LUA_A ?= liblua.a
 CORE_O=	lapi.o lcode.o lctype.o ldebug.o ldo.o ldump.o lfunc.o lgc.o llex.o lmem.o lobject.o lopcodes.o lparser.o lstate.o lstring.o ltable.o ltm.o lundump.o lvm.o lzio.o
 LIB_O=	lauxlib.o lbaselib.o lcorolib.o ldblib.o liolib.o lmathlib.o loadlib.o loslib.o lstrlib.o ltablib.o lutf8lib.o linit.o
 BASE_O= $(CORE_O) $(LIB_O) $(MYOBJS)
@@ -57,7 +57,7 @@ o:	$(ALL_O)
 a:	$(ALL_A)
 
 $(LUA_A): $(BASE_O)
-	$(AR) $@ $(BASE_O)
+	$(AR) rcu $@ $(BASE_O)
 	$(RANLIB) $@
 
 $(LUA_T): $(LUA_O) $(LUA_A)
